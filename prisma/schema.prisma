@@ -1,0 +1,95 @@
+// Prisma schema for mi-factura (SQLite, localhost)
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Issuer {
+  id        Int       @id @default(autoincrement())
+  name      String
+  address   String
+  cityZone  String
+  cuit      String
+  phone     String
+  email     String
+  isDefault Boolean   @default(false)
+  invoices  Invoice[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Client {
+  id        Int       @id @default(autoincrement())
+  name      String
+  address   String
+  zip       String
+  taxId     String?
+  email     String?
+  invoices  Invoice[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Invoice {
+  id       Int      @id @default(autoincrement())
+  number   String   @unique
+  date     DateTime @default(now())
+
+  // Reference to the Issuer record (kept for relations, nullable so the
+  // Issuer can be deleted later without losing the invoice).
+  issuerId Int?
+  issuer   Issuer? @relation(fields: [issuerId], references: [id], onDelete: SetNull)
+
+  // Reference to the Client record (nullable for the same reason).
+  clientId Int?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  // Snapshot of the issuer at the moment of emission. These fields are
+  // immutable for the life of the invoice and used by the PDF.
+  issuerName     String
+  issuerAddress  String
+  issuerCityZone String
+  issuerCuit     String
+  issuerPhone    String
+  issuerEmail    String
+
+  // Snapshot of the client at the moment of emission.
+  clientName  String
+  clientAddr  String
+  clientZip   String
+  clientTaxId String?
+  clientEmail String?
+
+  job         String
+  conditions  String
+
+  ivaPercent  Float    @default(0)
+  subtotal    Float
+  total       Float
+  currency    String   @default("USD")
+
+  pdfPath     String?
+
+  items       InvoiceItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int
+  description String
+  amount      Float
+  position    Int     @default(0)
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
