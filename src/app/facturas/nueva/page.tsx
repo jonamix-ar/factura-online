@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { NewInvoiceForm } from "@/app/facturas/nueva/new-invoice-form";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 
 export default async function NuevaFacturaPage() {

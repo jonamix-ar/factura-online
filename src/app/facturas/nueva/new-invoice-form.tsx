@@ -5,12 +5,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createInvoice } from "@/app/facturas/actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -67,9 +62,7 @@ export function NewInvoiceForm({
     clients[0] ? String(clients[0].id) : "new",
   );
   const isNewClient = clientSelection === "new";
-  const selectedClient = clients.find(
-    (c) => String(c.id) === clientSelection,
-  );
+  const selectedClient = clients.find((c) => String(c.id) === clientSelection);
 
   const [date, setDate] = useState(today);
   const [clientName, setClientName] = useState(selectedClient?.name ?? "");
@@ -235,8 +228,8 @@ export function NewInvoiceForm({
             {!isNewClient ? (
               <p className="text-xs text-muted-foreground">
                 Datos cargados desde el cliente. Editalos sólo si querés que
-                esta factura tenga un snapshot diferente — la ficha del
-                cliente no se modifica desde acá.
+                esta factura tenga un snapshot diferente — la ficha del cliente
+                no se modifica desde acá.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">

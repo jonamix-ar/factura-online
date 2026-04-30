@@ -3,10 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { formatInvoiceNumber } from "@/lib/format";
-import {
-  deleteInvoicePdf,
-  renderInvoicePdfToFile,
-} from "@/lib/pdf/render";
+import { deleteInvoicePdf, renderInvoicePdfToFile } from "@/lib/pdf/render";
 import { prisma } from "@/lib/prisma";
 
 type CreateInvoiceItem = {
@@ -160,7 +157,7 @@ export async function createInvoice(input: CreateInvoiceInput) {
   });
 
   revalidatePath("/facturas");
-  redirect(`/facturas/${invoice.id}`);
+  redirect(`/facturas/${invoice.number}`);
 }
 
 export async function deleteInvoice(id: number) {
@@ -216,5 +213,5 @@ export async function regenerateInvoicePdf(id: number) {
     where: { id: invoice.id },
     data: { pdfPath: publicPath },
   });
-  revalidatePath(`/facturas/${invoice.id}`);
+  revalidatePath(`/facturas/${invoice.number}`);
 }

@@ -2,12 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { InvoiceActions } from "@/app/facturas/[id]/invoice-actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatAmount, formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -17,12 +12,10 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id: idParam } = await params;
-  const id = Number(idParam);
-  if (!Number.isFinite(id)) notFound();
+  const { id: numberParam } = await params;
 
   const invoice = await prisma.invoice.findUnique({
-    where: { id },
+    where: { number: numberParam },
     include: { items: { orderBy: { position: "asc" } } },
   });
   if (!invoice) notFound();
@@ -65,9 +58,7 @@ export default async function InvoiceDetailPage({
             <div>
               <p className="text-muted-foreground">Emisor</p>
               <p className="font-medium">{invoice.issuerName}</p>
-              <p className="text-muted-foreground">
-                CUIT {invoice.issuerCuit}
-              </p>
+              <p className="text-muted-foreground">CUIT {invoice.issuerCuit}</p>
             </div>
             <Separator />
             <div>

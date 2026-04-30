@@ -63,10 +63,7 @@ export function FiltersBar({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <form
-        onSubmit={onSearchSubmit}
-        className="relative flex-1 min-w-[220px]"
-      >
+      <form onSubmit={onSearchSubmit} className="relative flex-1 min-w-[220px]">
         <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={q}

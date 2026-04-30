@@ -2,10 +2,7 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import {
-  deleteInvoice,
-  regenerateInvoicePdf,
-} from "@/app/facturas/actions";
+import { deleteInvoice, regenerateInvoicePdf } from "@/app/facturas/actions";
 import { Button } from "@/components/ui/button";
 
 export function InvoiceActions({ id }: { id: number }) {
