@@ -1,10 +1,4 @@
-import {
-  Document,
-  Page,
-  StyleSheet,
-  Text,
-  View,
-} from "@react-pdf/renderer";
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { formatAmount, formatDate } from "@/lib/format";
 
 type Issuer = {
@@ -278,9 +272,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
           </View>
           <View style={styles.topBandRight}>
             <Text style={styles.topBandNumber}>N.º {number}</Text>
-            <Text style={styles.topBandDate}>
-              {issuer.name.toUpperCase()}
-            </Text>
+            <Text style={styles.topBandDate}>{issuer.name.toUpperCase()}</Text>
           </View>
         </View>
 
@@ -323,14 +315,11 @@ export function InvoicePdf(props: InvoicePdfProps) {
           <View style={styles.table}>
             <View style={styles.thead}>
               <Text style={styles.thIndex}>#</Text>
-              <Text style={styles.thDesc}>
-                DESCRIPCIÓN DE CARGO FINANCIERO
-              </Text>
+              <Text style={styles.thDesc}>DESCRIPCIÓN DE CARGO FINANCIERO</Text>
               <Text style={styles.thAmount}>MONTO</Text>
             </View>
             {items.map((item, idx) => (
               <View
-                // biome-ignore lint/suspicious/noArrayIndexKey: items are render-only and rendered once on the server
                 key={`item-${idx}`}
                 style={[styles.tr, idx % 2 === 1 ? styles.trZebra : {}]}
                 wrap={false}
