@@ -3,7 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createInvoice } from "@/app/facturas/actions";
+import { createInvoice, updateInvoice } from "@/app/facturas/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,20 +19,37 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENCIES } from "@/lib/currencies";
 
-type IssuerOption = {
+export type IssuerOption = {
   id: number;
   name: string;
   cuit: string;
   isDefault: boolean;
 };
 
-type ClientOption = {
+export type ClientOption = {
   id: number;
   name: string;
   address: string;
   zip: string;
   taxId: string | null;
   email: string | null;
+};
+
+export type InvoiceInitial = {
+  id: number;
+  issuerId: number;
+  clientId: number | null;
+  date: string;
+  clientName: string;
+  clientAddr: string;
+  clientZip: string;
+  clientTaxId: string;
+  clientEmail: string;
+  job: string;
+  conditions: string;
+  ivaPercent: string;
+  currency: string;
+  items: { description: string; amount: string }[];
 };
 
 type ItemDraft = {
@@ -46,41 +63,62 @@ const newItemId = () => `it-${++itemIdCounter}`;
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function NewInvoiceForm({
-  issuers,
-  clients,
-}: {
+type Props = {
+  mode: "create" | "edit";
   issuers: IssuerOption[];
   clients: ClientOption[];
-}) {
+  initial?: InvoiceInitial;
+};
+
+export function InvoiceForm({ mode, issuers, clients, initial }: Props) {
   const [pending, startTransition] = useTransition();
+  const isEdit = mode === "edit";
 
   const defaultIssuer = issuers.find((i) => i.isDefault) ?? issuers[0];
-  const [issuerId, setIssuerId] = useState<string>(String(defaultIssuer.id));
 
-  const [clientSelection, setClientSelection] = useState<string>(
-    clients[0] ? String(clients[0].id) : "new",
+  const [issuerId, setIssuerId] = useState<string>(
+    initial ? String(initial.issuerId) : String(defaultIssuer.id),
   );
-  const isNewClient = clientSelection === "new";
-  const selectedClient = clients.find((c) => String(c.id) === clientSelection);
 
-  const [date, setDate] = useState(today);
-  const [clientName, setClientName] = useState(selectedClient?.name ?? "");
-  const [clientAddr, setClientAddr] = useState(selectedClient?.address ?? "");
-  const [clientZip, setClientZip] = useState(selectedClient?.zip ?? "");
-  const [clientTaxId, setClientTaxId] = useState(selectedClient?.taxId ?? "");
-  const [clientEmail, setClientEmail] = useState(selectedClient?.email ?? "");
-  const [job, setJob] = useState("Desarrollo y Programación");
-  const [conditions, setConditions] = useState("");
-  const [ivaPercent, setIvaPercent] = useState("0");
-  const [currency, setCurrency] = useState("USD");
-  const [items, setItems] = useState<ItemDraft[]>(() => [
-    {
-      id: newItemId(),
-      description: "Servicios de Desarrollo y Programación",
-      amount: "",
-    },
-  ]);
+  const [clientSelection, setClientSelection] = useState<string>(() => {
+    if (initial?.clientId != null) return String(initial.clientId);
+    if (initial) return "new";
+    return clients[0] ? String(clients[0].id) : "new";
+  });
+  const isNewClient = clientSelection === "new";
+
+  const [date, setDate] = useState(initial?.date ?? today);
+  const [clientName, setClientName] = useState(
+    initial?.clientName ?? clients[0]?.name ?? "",
+  );
+  const [clientAddr, setClientAddr] = useState(
+    initial?.clientAddr ?? clients[0]?.address ?? "",
+  );
+  const [clientZip, setClientZip] = useState(
+    initial?.clientZip ?? clients[0]?.zip ?? "",
+  );
+  const [clientTaxId, setClientTaxId] = useState(
+    initial?.clientTaxId ?? clients[0]?.taxId ?? "",
+  );
+  const [clientEmail, setClientEmail] = useState(
+    initial?.clientEmail ?? clients[0]?.email ?? "",
+  );
+  const [job, setJob] = useState(initial?.job ?? "Desarrollo y Programación");
+  const [conditions, setConditions] = useState(initial?.conditions ?? "");
+  const [ivaPercent, setIvaPercent] = useState(initial?.ivaPercent ?? "0");
+  const [currency, setCurrency] = useState(initial?.currency ?? "USD");
+
+  const [items, setItems] = useState<ItemDraft[]>(() =>
+    initial && initial.items.length > 0
+      ? initial.items.map((it) => ({ ...it, id: newItemId() }))
+      : [
+          {
+            id: newItemId(),
+            description: "Servicios de Desarrollo y Programación",
+            amount: "",
+          },
+        ],
+  );
 
   function pickClient(value: string) {
     setClientSelection(value);
@@ -129,7 +167,7 @@ export function NewInvoiceForm({
     e.preventDefault();
     startTransition(async () => {
       try {
-        await createInvoice({
+        const payload = {
           issuerId: Number(issuerId),
           clientId: isNewClient ? null : Number(clientSelection),
           date,
@@ -146,9 +184,15 @@ export function NewInvoiceForm({
             description: it.description,
             amount: Number(it.amount) || 0,
           })),
-        });
+        };
+
+        if (isEdit && initial) {
+          await updateInvoice(initial.id, payload);
+        } else {
+          await createInvoice(payload);
+        }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error al crear");
+        toast.error(err instanceof Error ? err.message : "Error al guardar");
       }
     });
   }
@@ -389,7 +433,13 @@ export function NewInvoiceForm({
 
       <div className="flex justify-end gap-2">
         <Button type="submit" disabled={pending}>
-          {pending ? "Generando…" : "Crear factura"}
+          {pending
+            ? isEdit
+              ? "Guardando…"
+              : "Generando…"
+            : isEdit
+              ? "Guardar cambios"
+              : "Crear factura"}
         </Button>
       </div>
     </form>

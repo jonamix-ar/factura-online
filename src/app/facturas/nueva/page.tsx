@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { NewInvoiceForm } from "@/app/facturas/nueva/new-invoice-form";
+import { InvoiceForm } from "@/app/facturas/_components/invoice-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
@@ -37,7 +37,8 @@ export default async function NuevaFacturaPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Nueva factura</h1>
-      <NewInvoiceForm
+      <InvoiceForm
+        mode="create"
         issuers={issuers.map((i) => ({
           id: i.id,
           name: i.name,
