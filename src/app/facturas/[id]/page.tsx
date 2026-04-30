@@ -45,6 +45,9 @@ export default async function InvoiceDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/facturas/${invoice.id}/editar`}>Editar</Link>
+          </Button>
           {invoice.pdfPath ? (
             <Button asChild variant="outline">
               <a href={invoice.pdfPath} download={`${invoice.number}.pdf`}>
@@ -136,7 +139,7 @@ export default async function InvoiceDetailPage({
               <iframe
                 title={`Factura ${invoice.number}`}
                 src={invoice.pdfPath}
-                className="h-[900px] w-full border-0"
+                className="h-225 w-full border-0"
               />
             ) : (
               <p className="p-6 text-sm text-muted-foreground">
