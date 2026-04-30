@@ -13,8 +13,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "mi-factura",
-  description: "Sistema local de facturas",
+  title: "Supremo Recaudador del Desierto Impositivo",
+  description: "Supremo Recaudador del Desierto Impositivo",
 };
 
 export default function RootLayout({

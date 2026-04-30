@@ -18,7 +18,7 @@ export function AppNav() {
     <header className="border-b bg-background">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
         <Link href="/facturas" className="text-lg font-semibold">
-          mi-factura
+          Supremo Recaudador del Desierto Impositivo
         </Link>
         <div className="flex items-center gap-2">
           <nav className="flex gap-1">

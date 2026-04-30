@@ -74,7 +74,10 @@ public/invoice/       # destino de los PDFs generados (gitignored)
 
 ```bash
 bun run dev               # dev server
-bun run build             # build de producción
+bun run build             # build de producción (incluye type-check)
+bun run lint              # verificar con Biome
+bun run format            # formatear con Biome
+bunx biome check --write --unsafe   # lint + auto-fix (incluye fixes no seguros)
 bunx prisma studio        # GUI sobre la DB local
 bunx prisma migrate dev   # aplicar nuevas migraciones en desarrollo
 ```
@@ -94,4 +97,6 @@ Mirá [`.gitignore`](.gitignore) para la lista completa. Si vas a contribuir o f
 
 - **Cambios de schema en dev**: si modificás `prisma/schema.prisma` y corre `prisma migrate dev`, es probable que tengas que **reiniciar el dev server** (Ctrl+C + `bun run dev`). Turbopack cachea el cliente Prisma generado en memoria.
 - **Warning de `<script>` de React 19**: viene de `next-themes` (inyecta su anti-FOUC con `dangerouslySetInnerHTML`). Es un falso positivo, el script sí se ejecuta porque va en el HTML SSR.
+- **Turbopack NFT warning en build**: al compilar aparece un warning sobre `next.config.ts → src/lib/prisma.ts`. Es esperado — Turbopack rastrea el `process.cwd()` en `prisma.ts` y lo marca como traza amplia. No bloquea el build.
+- **Scripts en `prisma/`** (`fix-numbering.ts`, `seed-history.ts`): son scripts de utilidad que usan APIs de Bun (`bun:sqlite`). Están excluidos del TypeScript de Next.js (`tsconfig.json`) y deben ejecutarse con `bunx tsx` o directamente con `bun`.
 - El sistema está pensado para **uso local**, no tiene autenticación. Si lo expusieras en una red, agregale auth antes.

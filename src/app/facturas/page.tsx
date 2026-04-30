@@ -2,13 +2,9 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { FiltersBar } from "@/app/facturas/filters-bar";
 import { PaginationBar } from "@/app/facturas/pagination-bar";
+import { SortableHead } from "@/app/facturas/sortable-head";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -22,11 +18,23 @@ import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 12;
 
+const SORT_FIELDS = [
+  "number",
+  "date",
+  "clientName",
+  "job",
+  "issuerName",
+  "total",
+] as const;
+type SortField = (typeof SORT_FIELDS)[number];
+
 type SearchParams = {
   q?: string;
   issuerId?: string;
   year?: string;
   page?: string;
+  sort?: string;
+  dir?: string;
 };
 
 export default async function FacturasPage({
@@ -40,6 +48,10 @@ export default async function FacturasPage({
     sp.issuerId && sp.issuerId !== "all" ? Number(sp.issuerId) : undefined;
   const yearNum = sp.year && sp.year !== "all" ? Number(sp.year) : undefined;
   const page = Math.max(1, Number(sp.page) || 1);
+  const sortField: SortField = SORT_FIELDS.includes(sp.sort as SortField)
+    ? (sp.sort as SortField)
+    : "number";
+  const sortDir = sp.dir === "asc" ? "asc" : "desc";
 
   const where: Parameters<typeof prisma.invoice.findMany>[0] extends infer T
     ? T extends { where?: infer W }
@@ -69,7 +81,7 @@ export default async function FacturasPage({
   const [invoices, total, allIssuers, allDates] = await Promise.all([
     prisma.invoice.findMany({
       where,
-      orderBy: { id: "desc" },
+      orderBy: { [sortField]: sortDir },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
@@ -128,12 +140,23 @@ export default async function FacturasPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-20">N.º</TableHead>
-                  <TableHead className="w-30">Fecha</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Trabajo</TableHead>
-                  <TableHead className="hidden md:table-cell">Emisor</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <SortableHead column="number" className="w-20">
+                    N.º
+                  </SortableHead>
+                  <SortableHead column="date" className="w-30">
+                    Fecha
+                  </SortableHead>
+                  <SortableHead column="clientName">Cliente</SortableHead>
+                  <SortableHead column="job">Trabajo</SortableHead>
+                  <SortableHead
+                    column="issuerName"
+                    className="hidden md:table-cell"
+                  >
+                    Emisor
+                  </SortableHead>
+                  <SortableHead column="total" className="text-right">
+                    Total
+                  </SortableHead>
                   <TableHead className="w-15" />
                 </TableRow>
               </TableHeader>
@@ -170,7 +193,7 @@ export default async function FacturasPage({
                         size="sm"
                         className="text-muted-foreground hover:text-foreground"
                       >
-                        <Link href={`/facturas/${inv.id}`}>
+                        <Link href={`/facturas/${inv.number}`}>
                           <ArrowRight className="size-4" />
                         </Link>
                       </Button>
