@@ -13,9 +13,6 @@ type CreateInvoiceItem = {
 
 type CreateInvoiceInput = {
   issuerId: number;
-  // If clientId is provided, the snapshot fields below are ignored and
-  // taken from the Client record. If it's null, a new Client is created
-  // from the snapshot fields.
   clientId: number | null;
   date: string;
   clientName: string;
@@ -31,12 +28,12 @@ type CreateInvoiceInput = {
 };
 
 async function nextInvoiceNumber(): Promise<string> {
-  const last = await prisma.invoice.findFirst({
-    orderBy: { id: "desc" },
-    select: { number: true },
+  const result = await prisma.$transaction(async (tx) => {
+    const [{ maxNumber }] = await tx.$queryRaw<[{ maxNumber: string | null }]>`SELECT MAX(CAST(number AS INTEGER)) as maxNumber FROM Invoice`;
+    const lastN = maxNumber ? Number(maxNumber) : 0;
+    return formatInvoiceNumber(lastN + 1);
   });
-  const lastN = last ? Number(last.number) : 0;
-  return formatInvoiceNumber(lastN + 1);
+  return result;
 }
 
 export async function createInvoice(input: CreateInvoiceInput) {
@@ -56,9 +53,6 @@ export async function createInvoice(input: CreateInvoiceInput) {
   });
   if (!issuer) throw new Error("El emisor seleccionado no existe.");
 
-  // Resolve client: either pick the existing one or create a new one from
-  // the snapshot fields. The Invoice always carries its own snapshot copy
-  // (clientName/Addr/Zip/TaxId/Email) regardless.
   let clientId: number | null = null;
   let snapshot = {
     name: input.clientName.trim(),
@@ -88,41 +82,67 @@ export async function createInvoice(input: CreateInvoiceInput) {
 
   const subtotal = items.reduce((acc, it) => acc + it.amount, 0);
   const total = subtotal * (1 + input.ivaPercent / 100);
-  const number = await nextInvoiceNumber();
   const date = new Date(input.date);
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      number,
-      date,
-      issuerId: issuer.id,
-      clientId,
-      issuerName: issuer.name,
-      issuerAddress: issuer.address,
-      issuerCityZone: issuer.cityZone,
-      issuerCuit: issuer.cuit,
-      issuerPhone: issuer.phone,
-      issuerEmail: issuer.email,
-      clientName: snapshot.name,
-      clientAddr: snapshot.address,
-      clientZip: snapshot.zip,
-      clientTaxId: snapshot.taxId,
-      clientEmail: snapshot.email,
-      job: input.job,
-      conditions: input.conditions,
-      ivaPercent: input.ivaPercent,
-      subtotal,
-      total,
-      currency: input.currency,
-      items: {
-        create: items.map((it, position) => ({
-          description: it.description,
-          amount: it.amount,
-          position,
-        })),
-      },
-    },
-  });
+  let invoice;
+  let attempts = 0;
+
+  while (!invoice && attempts < 5) {
+    if (attempts > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
+    }
+    attempts++;
+
+    const number = await nextInvoiceNumber();
+
+    try {
+      invoice = await prisma.invoice.create({
+        include: { items: true },
+        data: {
+          number,
+          date,
+          issuerId: issuer.id,
+          clientId,
+          issuerName: issuer.name,
+          issuerAddress: issuer.address,
+          issuerCityZone: issuer.cityZone,
+          issuerCuit: issuer.cuit,
+          issuerPhone: issuer.phone,
+          issuerEmail: issuer.email,
+          clientName: snapshot.name,
+          clientAddr: snapshot.address,
+          clientZip: snapshot.zip,
+          clientTaxId: snapshot.taxId,
+          clientEmail: snapshot.email,
+          job: input.job,
+          conditions: input.conditions,
+          ivaPercent: input.ivaPercent,
+          subtotal,
+          total,
+          currency: input.currency,
+          items: {
+            create: items.map((it, position) => ({
+              description: it.description,
+              amount: it.amount,
+              position,
+            })),
+          },
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Error &&
+        e.message.includes("Unique constraint failed")
+      ) {
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  if (!invoice) {
+    throw new Error("No se pudo crear la factura después de varios intentos.");
+  }
 
   const { publicPath } = await renderInvoicePdfToFile({
     issuer: {
@@ -133,8 +153,8 @@ export async function createInvoice(input: CreateInvoiceInput) {
       phone: issuer.phone,
       email: issuer.email,
     },
-    number,
-    date,
+    number: invoice.number,
+    date: invoice.date,
     client: {
       name: snapshot.name,
       address: snapshot.address,
@@ -144,11 +164,14 @@ export async function createInvoice(input: CreateInvoiceInput) {
     },
     job: input.job,
     conditions: input.conditions,
-    items,
     ivaPercent: input.ivaPercent,
     subtotal,
     total,
     currency: input.currency,
+    items: invoice.items.map((it) => ({
+      description: it.description,
+      amount: it.amount,
+    })),
   });
 
   await prisma.invoice.update({
@@ -160,8 +183,14 @@ export async function createInvoice(input: CreateInvoiceInput) {
   redirect(`/facturas/${invoice.number}`);
 }
 
-export async function updateInvoice(id: number, input: CreateInvoiceInput) {
-  const existing = await prisma.invoice.findUnique({ where: { id } });
+export async function updateInvoice(
+  id: number,
+  input: Omit<CreateInvoiceInput, "items"> & { items: CreateInvoiceItem[] }
+) {
+  const existing = await prisma.invoice.findUnique({
+    where: { id },
+    include: { items: true },
+  });
   if (!existing) throw new Error("Factura no encontrada.");
 
   const items = input.items
@@ -190,17 +219,17 @@ export async function updateInvoice(id: number, input: CreateInvoiceInput) {
   };
 
   if (input.clientId) {
-    const client = await prisma.client.findUnique({
+    const existing = await prisma.client.findUnique({
       where: { id: input.clientId },
     });
-    if (!client) throw new Error("El cliente seleccionado no existe.");
-    clientId = client.id;
+    if (!existing) throw new Error("El cliente seleccionado no existe.");
+    clientId = existing.id;
     snapshot = {
-      name: client.name,
-      address: client.address,
-      zip: client.zip,
-      taxId: client.taxId,
-      email: client.email,
+      name: existing.name,
+      address: existing.address,
+      zip: existing.zip,
+      taxId: existing.taxId,
+      email: existing.email,
     };
   } else {
     const created = await prisma.client.create({ data: snapshot });
@@ -211,7 +240,12 @@ export async function updateInvoice(id: number, input: CreateInvoiceInput) {
   const total = subtotal * (1 + input.ivaPercent / 100);
   const date = new Date(input.date);
 
-  await prisma.invoice.update({
+  await prisma.invoiceItem.deleteMany({
+    where: { invoiceId: id },
+  });
+
+  const invoice = await prisma.invoice.update({
+    include: { items: true },
     where: { id },
     data: {
       date,
@@ -235,7 +269,6 @@ export async function updateInvoice(id: number, input: CreateInvoiceInput) {
       total,
       currency: input.currency,
       items: {
-        deleteMany: {},
         create: items.map((it, position) => ({
           description: it.description,
           amount: it.amount,
@@ -245,7 +278,10 @@ export async function updateInvoice(id: number, input: CreateInvoiceInput) {
     },
   });
 
-  // Re-render PDF (overwrites the file at the same path).
+  if (existing.pdfPath) {
+    await deleteInvoicePdf(existing.pdfPath);
+  }
+
   const { publicPath } = await renderInvoicePdfToFile({
     issuer: {
       name: issuer.name,
@@ -255,8 +291,8 @@ export async function updateInvoice(id: number, input: CreateInvoiceInput) {
       phone: issuer.phone,
       email: issuer.email,
     },
-    number: existing.number,
-    date,
+    number: invoice.number,
+    date: invoice.date,
     client: {
       name: snapshot.name,
       address: snapshot.address,
@@ -266,41 +302,57 @@ export async function updateInvoice(id: number, input: CreateInvoiceInput) {
     },
     job: input.job,
     conditions: input.conditions,
-    items,
     ivaPercent: input.ivaPercent,
     subtotal,
     total,
     currency: input.currency,
+    items: invoice.items.map((it) => ({
+      description: it.description,
+      amount: it.amount,
+    })),
   });
 
   await prisma.invoice.update({
-    where: { id },
+    where: { id: invoice.id },
     data: { pdfPath: publicPath },
   });
 
   revalidatePath("/facturas");
-  revalidatePath(`/facturas/${id}`);
-  redirect(`/facturas/${id}`);
+  redirect(`/facturas/${invoice.number}`);
 }
 
 export async function deleteInvoice(id: number) {
-  const inv = await prisma.invoice.findUnique({
+  const existing = await prisma.invoice.findUnique({
     where: { id },
-    select: { number: true },
   });
-  if (!inv) return;
-  await deleteInvoicePdf(inv.number);
-  await prisma.invoice.delete({ where: { id } });
+  if (!existing) throw new Error("Factura no encontrada.");
+
+  if (existing.pdfPath) {
+    await deleteInvoicePdf(existing.pdfPath);
+  }
+
+  await prisma.invoice.delete({
+    where: { id },
+  });
+
   revalidatePath("/facturas");
-  redirect("/facturas");
 }
 
 export async function regenerateInvoicePdf(id: number) {
   const invoice = await prisma.invoice.findUnique({
     where: { id },
-    include: { items: { orderBy: { position: "asc" } } },
+    include: { items: true },
   });
   if (!invoice) throw new Error("Factura no encontrada.");
+
+  const issuer = await prisma.issuer.findUnique({
+    where: { id: invoice.issuerId ?? undefined },
+  });
+  if (!issuer) throw new Error("Emisor no encontrado.");
+
+  if (invoice.pdfPath) {
+    await deleteInvoicePdf(invoice.pdfPath);
+  }
 
   const { publicPath } = await renderInvoicePdfToFile({
     issuer: {
@@ -317,24 +369,26 @@ export async function regenerateInvoicePdf(id: number) {
       name: invoice.clientName,
       address: invoice.clientAddr,
       zip: invoice.clientZip,
-      taxId: invoice.clientTaxId,
-      email: invoice.clientEmail,
+      taxId: invoice.clientTaxId ?? undefined,
+      email: invoice.clientEmail ?? undefined,
     },
     job: invoice.job,
     conditions: invoice.conditions,
-    items: invoice.items.map((i) => ({
-      description: i.description,
-      amount: i.amount,
-    })),
     ivaPercent: invoice.ivaPercent,
     subtotal: invoice.subtotal,
     total: invoice.total,
     currency: invoice.currency,
+    items: invoice.items.map((it) => ({
+      description: it.description,
+      amount: it.amount,
+    })),
   });
 
   await prisma.invoice.update({
-    where: { id: invoice.id },
+    where: { id },
     data: { pdfPath: publicPath },
   });
-  revalidatePath(`/facturas/${invoice.number}`);
+
+  revalidatePath("/facturas");
+  revalidatePath(`/facturas/${id}`);
 }
